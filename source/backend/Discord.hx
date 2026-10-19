@@ -104,6 +104,9 @@ class DiscordClient
 		if (hasStartTimestamp) startTimestamp = Date.now().getTime();
 		if (endTimestamp > 0) endTimestamp = startTimestamp + endTimestamp;
 
+		if (largeImageKey == 'icon' && states.PlayState.instance != null && states.PlayState.SONG != null)
+			largeImageKey = ~/[^a-z0-9]+/g.replace(states.PlayState.SONG.song.toLowerCase(), '_');
+
 		presence.state = state;
 		presence.details = details;
 		presence.smallImageKey = smallImageKey;
