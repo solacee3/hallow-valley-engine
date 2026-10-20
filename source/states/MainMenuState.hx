@@ -25,14 +25,13 @@ class MainMenuState extends MusicBeatState
 
 	//Centered/Text options
 	var optionShit:Array<String> = [
-		'story_mode',
 		'freeplay',
-		#if MODS_ALLOWED 'mods', #end
-		'credits'
+		'credits',
+		'options'
 	];
 
-	var leftOption:String = #if ACHIEVEMENTS_ALLOWED 'achievements' #else null #end;
-	var rightOption:String = 'options';
+	var leftOption:String = null;
+	var rightOption:String = null;
 
 	var magenta:FlxSprite;
 	var camFollow:FlxObject;
@@ -55,7 +54,12 @@ class MainMenuState extends MusicBeatState
 		persistentUpdate = persistentDraw = true;
 
 		var yScroll:Float = 0.25;
-		var bg:FlxSprite = new FlxSprite(-80).loadGraphic(Paths.image('menuBG'));
+		// Black background. Drop images/menuBGCustom.png in later and it replaces the black automatically (no rebuild)
+		var bg:FlxSprite = new FlxSprite(-80);
+		if(Paths.fileExists('images/menuBGCustom.png', IMAGE))
+			bg.loadGraphic(Paths.image('menuBGCustom'));
+		else
+			bg.makeGraphic(FlxG.width, FlxG.height, FlxColor.BLACK);
 		bg.antialiasing = ClientPrefs.data.antialiasing;
 		bg.scrollFactor.set(0, yScroll);
 		bg.setGraphicSize(Std.int(bg.width * 1.175));
@@ -73,7 +77,7 @@ class MainMenuState extends MusicBeatState
 		magenta.updateHitbox();
 		magenta.screenCenter();
 		magenta.visible = false;
-		magenta.color = 0xFFfd719b;
+		magenta.color = FlxColor.WHITE;
 		add(magenta);
 
 		menuItems = new FlxTypedGroup<FlxSprite>();
@@ -83,7 +87,7 @@ class MainMenuState extends MusicBeatState
 		{
 			var item:FlxSprite = createMenuItem(option, 0, (num * 140) + 90);
 			item.y += (4 - optionShit.length) * 70; // Offsets for when you have anything other than 4 items
-			item.screenCenter(X);
+			item.x = FlxG.width - item.width - 120; // buttons on the right
 		}
 
 		if (leftOption != null)
@@ -94,14 +98,18 @@ class MainMenuState extends MusicBeatState
 			rightItem.x -= rightItem.width;
 		}
 
-		var psychVer:FlxText = new FlxText(12, FlxG.height - 44, 0, "Psych Engine v" + psychEngineVersion, 12);
-		psychVer.scrollFactor.set();
-		psychVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
-		add(psychVer);
-		var fnfVer:FlxText = new FlxText(12, FlxG.height - 24, 0, "Friday Night Funkin' v" + Application.current.meta.get('version'), 12);
-		fnfVer.scrollFactor.set();
-		fnfVer.setFormat(Paths.font("vcr.ttf"), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
-		add(fnfVer);
+		// Logo on the left (uses the logoBumpin atlas; swap the art later without rebuilding)
+		var sideLogo:FlxSprite = new FlxSprite(40, 0);
+		sideLogo.frames = Paths.getSparrowAtlas('logoBumpin');
+		sideLogo.animation.addByPrefix('bump', 'logo bumpin', 24, false);
+		sideLogo.animation.play('bump');
+		sideLogo.setGraphicSize(520);
+		sideLogo.updateHitbox();
+		sideLogo.antialiasing = ClientPrefs.data.antialiasing;
+		sideLogo.scrollFactor.set();
+		sideLogo.screenCenter(Y);
+		add(sideLogo);
+
 		changeItem();
 
 		#if ACHIEVEMENTS_ALLOWED

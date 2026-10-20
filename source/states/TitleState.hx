@@ -6,6 +6,7 @@ import flixel.input.keyboard.FlxKey;
 import flixel.graphics.frames.FlxAtlasFrames;
 import flixel.graphics.frames.FlxFrame;
 import flixel.group.FlxGroup;
+import flixel.effects.FlxFlicker;
 import flixel.input.gamepad.FlxGamepad;
 import haxe.Json;
 
@@ -115,6 +116,7 @@ class TitleState extends MusicBeatState
 	var gfDance:FlxSprite;
 	var danceLeft:Bool = false;
 	var titleText:FlxSprite;
+	var playText:FlxText;
 	var swagShader:ColorSwap = null;
 
 	function startIntro()
@@ -197,9 +199,21 @@ class TitleState extends MusicBeatState
 		ngSpr.screenCenter(X);
 		ngSpr.antialiasing = ClientPrefs.data.antialiasing;
 
+		// Custom title: logo dead center, no GF, no original enter text
+		logoBl.screenCenter();
+		gfDance.visible = false;
+		gfDance.active = false;
+		titleText.visible = false;
+
+		playText = new FlxText(0, FlxG.height * 0.82, FlxG.width, "Press Enter to play", 32);
+		playText.setFormat(Paths.font("vcr.ttf"), 32, FlxColor.WHITE, CENTER);
+		playText.scrollFactor.set();
+		FlxTween.tween(playText, {alpha: 0.3}, 0.8, {type: PINGPONG, ease: FlxEase.sineInOut});
+
 		add(gfDance);
 		add(logoBl); //FNF Logo
-		add(titleText); //"Press Enter to Begin" text
+		add(titleText); //"Press Enter to Begin" text (hidden)
+		add(playText); //"Press Enter to play" text
 		add(credGroup);
 		add(ngSpr);
 
@@ -378,6 +392,10 @@ class TitleState extends MusicBeatState
 				titleText.alpha = 1;
 				
 				if(titleText != null) titleText.animation.play('press');
+
+				FlxTween.cancelTweensOf(playText);
+				playText.alpha = 1;
+				FlxFlicker.flicker(playText, 1, 0.06, false);
 
 				FlxG.camera.flash(ClientPrefs.data.flashing ? FlxColor.WHITE : 0x4CFFFFFF, 1);
 				FlxG.sound.play(Paths.sound('confirmMenu'), 0.7);
