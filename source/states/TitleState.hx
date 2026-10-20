@@ -13,6 +13,7 @@ import haxe.Json;
 import openfl.Assets;
 import openfl.display.Bitmap;
 import openfl.display.BitmapData;
+import openfl.filters.BlurFilter;
 
 import shaders.ColorSwap;
 
@@ -119,6 +120,91 @@ class TitleState extends MusicBeatState
 	var playText:FlxText;
 	var swagShader:ColorSwap = null;
 
+	// Blur + fade effects
+	var blurFilter:BlurFilter = new BlurFilter(0, 0, 1);
+	var blurTween:FlxTween = null;
+	var fadeBlack:FlxSprite = null;
+	var returningToTitle:Bool = false; // true when coming back from the main menu (no full boot sequence)
+
+	// Applies a blur to the whole camera. 0 removes it.
+	// If your build says FlxCamera has no field "filters", change the two lines below to FlxG.camera.setFilters(...)
+	function setBlur(amount:Float)
+	{
+		if (amount <= 0.05)
+		{
+			FlxG.camera.filters = [];
+			return;
+		}
+		blurFilter.blurX = amount;
+		blurFilter.blurY = amount;
+		FlxG.camera.filters = [blurFilter];
+	}
+
+	function makeBlack(startAlpha:Float):FlxSprite
+	{
+		var s:FlxSprite = new FlxSprite().makeGraphic(1, 1, FlxColor.BLACK);
+		s.scale.set(FlxG.width, FlxG.height);
+		s.updateHitbox();
+		s.scrollFactor.set();
+		s.alpha = startAlpha;
+		return s;
+	}
+
+	// Replaces the white flash that used to play when the boot text finished:
+	// starts fully black + heavily blurred, then fades out while the blur clears.
+	function playIntroFade(duration:Float)
+	{
+		var cover:FlxSprite = makeBlack(1);
+		fadeBlack = cover;
+		add(cover);
+
+		setBlur(36);
+		if (blurTween != null) blurTween.cancel();
+		blurTween = FlxTween.num(36, 0, duration, {ease: FlxEase.quadOut}, function(v:Float) setBlur(v));
+
+		FlxTween.tween(cover, {alpha: 0}, duration, {ease: FlxEase.sineOut, onComplete: function(twn:FlxTween)
+		{
+			remove(cover);
+			cover.destroy();
+			if (fadeBlack == cover) fadeBlack = null;
+		}});
+	}
+
+	// Played when Enter is pressed on the title screen:
+	// camera punches in, everything smears with blur and drops to black, then the main menu loads.
+	function playEnterEffect()
+	{
+		var dur:Float = 1.0;
+
+		FlxG.sound.play(Paths.sound('confirmMenu'), 0.7);
+
+		// "Press Enter" text disappears right away
+		FlxTween.cancelTweensOf(playText);
+		FlxTween.tween(playText, {alpha: 0}, 0.15);
+
+		// Camera zooms in while the blur ramps up
+		FlxTween.tween(FlxG.camera, {zoom: 1.4}, dur, {ease: FlxEase.expoIn});
+		if (blurTween != null) blurTween.cancel();
+		blurTween = FlxTween.num(0, 48, dur, {ease: FlxEase.quadIn}, function(v:Float) setBlur(v));
+
+		// Logo pushes toward the camera
+		if (logoBl != null)
+			FlxTween.tween(logoBl.scale, {x: logoBl.scale.x * 1.2, y: logoBl.scale.y * 1.2}, dur, {ease: FlxEase.expoIn});
+
+		// Fade to black over the last part of the effect
+		var cover:FlxSprite = makeBlack(0);
+		fadeBlack = cover;
+		add(cover);
+		FlxTween.tween(cover, {alpha: 1}, dur * 0.75, {startDelay: dur * 0.25, ease: FlxEase.quadIn});
+
+		transitioning = true;
+		new FlxTimer().start(dur, function(tmr:FlxTimer)
+		{
+			MusicBeatState.switchState(new MainMenuState());
+			closedState = true;
+		});
+	}
+
 	function startIntro()
 	{
 		persistentUpdate = true;
@@ -210,13 +296,27 @@ class TitleState extends MusicBeatState
 		playText.scrollFactor.set();
 		FlxTween.tween(playText, {alpha: 0.3}, 0.8, {type: PINGPONG, ease: FlxEase.sineInOut});
 
+		// Custom title background: put your image at images/titleBGCustom.png (e.g. mods/<yourmod>/images/)
+		// Static, stretched to fill the screen, drawn behind everything else on the title screen
+		if(Paths.fileExists('images/titleBGCustom.png', IMAGE))
+		{
+			var titleBG:FlxSprite = new FlxSprite().loadGraphic(Paths.image('titleBGCustom'));
+			titleBG.antialiasing = ClientPrefs.data.antialiasing;
+			titleBG.scrollFactor.set();
+			titleBG.setGraphicSize(FlxG.width, FlxG.height);
+			titleBG.updateHitbox();
+			titleBG.screenCenter();
+			add(titleBG);
+		}
+
 		add(gfDance);
-		add(logoBl); //FNF Logo
+		add(logoBl); //FNF logo
 		add(titleText); //"Press Enter to Begin" text (hidden)
 		add(playText); //"Press Enter to play" text
 		add(credGroup);
 		add(ngSpr);
 
+		returningToTitle = initialized;
 		if (initialized)
 			skipIntro();
 		else
@@ -393,22 +493,8 @@ class TitleState extends MusicBeatState
 				
 				if(titleText != null) titleText.animation.play('press');
 
-				FlxTween.cancelTweensOf(playText);
-				playText.alpha = 1;
-				FlxFlicker.flicker(playText, 1, 0.06, false);
-
-				FlxG.camera.flash(ClientPrefs.data.flashing ? FlxColor.WHITE : 0x4CFFFFFF, 1);
-				FlxG.sound.play(Paths.sound('confirmMenu'), 0.7);
-
-				transitioning = true;
-				// FlxG.sound.music.stop();
-
-				new FlxTimer().start(1, function(tmr:FlxTimer)
-				{
-					MusicBeatState.switchState(new MainMenuState());
-					closedState = true;
-				});
-				// FlxG.sound.play(Paths.music('titleShoot'), 0.7);
+				// Zoom + blur + fade to black, then loads the main menu (see playEnterEffect)
+				playEnterEffect();
 			}
 			#if TITLE_SCREEN_EASTER_EGG
 			else if (FlxG.keys.firstJustPressed() != FlxKey.NONE)
@@ -645,7 +731,8 @@ class TitleState extends MusicBeatState
 			{
 				remove(ngSpr);
 				remove(credGroup);
-				FlxG.camera.flash(FlxColor.WHITE, 4);
+				// Black fade-out with blur instead of the white flash (shorter if returning from the menu)
+				playIntroFade(returningToTitle ? 0.7 : 2.8);
 
 				var easteregg:String = FlxG.save.data.psychDevsEasterEgg;
 				if (easteregg == null) easteregg = '';
